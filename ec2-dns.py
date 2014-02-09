@@ -3,7 +3,7 @@ import re
 
 from twisted.names import dns, server, client, cache
 from twisted.application import service, internet
-from twisted.internet import threads
+from twisted.internet import defer
 from twisted.python import log
 from twisted.python.log import ILogObserver, FileLogObserver
 from twisted.python.logfile import DailyLogFile
@@ -11,7 +11,7 @@ from twisted.python.logfile import DailyLogFile
 from boto.ec2 import connect_to_region
 
 _conn = {}
-regions = ["us-east-1", "us-west-2", "us-west-1"]
+regions = ["us-east-1", "us-west-2"]
 id_regexp = re.compile(r"^i-[a-z0-9]{8}$")
 
 
@@ -79,7 +79,7 @@ class DNSResolver(client.Resolver):
         :return: A DNS response for the record query.
         """
         log.msg("Query for %s" % name)
-        d = threads.deferToThread(lambda: queryAddress(name))
+        d = defer.execute(queryAddress, name)
         return d
 
 
