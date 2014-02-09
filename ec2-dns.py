@@ -29,7 +29,10 @@ def query(name, region):
 
     if id_regexp.match(name):
         # Lookup by instance ID
-        res = conn.get_all_instances(instance_ids=[name])
+        try:
+            res = conn.get_all_instances(instance_ids=[name])
+        except:
+            pass
     else:
         filters = {}
         if name.startswith("tag:"):
