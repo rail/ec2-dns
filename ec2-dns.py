@@ -7,30 +7,29 @@ from twisted.internet import defer
 from twisted.python import log
 from twisted.python.log import ILogObserver, FileLogObserver
 from twisted.python.logfile import DailyLogFile
+from repoze.lru import lru_cache
 
 from boto.ec2 import connect_to_region
 
-_conn = {}
 regions = ["us-east-1", "us-west-2"]
 id_regexp = re.compile(r"^i-[a-z0-9]{8}$")
 
 
+@lru_cache(10)
 def get_connection(region):
-    if _conn.get(region):
-        return _conn[region]
-    # TODO: use secrets
-    _conn[region] = connect_to_region(region)
-    return _conn[region]
+    return connect_to_region(region)
 
 
-def query(name, region):
+@lru_cache(100)
+def query(full_name, region):
+    name = full_name.replace(".ec2", "")
     conn = get_connection(region)
-    res = None
+    instances = None
 
     if id_regexp.match(name):
         # Lookup by instance ID
         try:
-            res = conn.get_all_instances(instance_ids=[name])
+            instances = conn.get_only_instances(instance_ids=[name])
         except:
             pass
     else:
@@ -43,15 +42,14 @@ def query(name, region):
                 filters["tag:%s" % tag] = value
         else:
             # Fallback to the FQDN tag
-            filters = {"tag:FQDN": "%s" % name}
-        res = conn.get_all_instances(filters=filters)
-    if not res:
+            filters = {"tag:Name": "%s" % name}
+        instances = conn.get_only_instances(filters=filters)
+    if not instances:
         return []
     ret = []
-    for r in res:
-        for i in r.instances:
-            if i.private_ip_address:
-                ret.append([i.tags.get("FQDN"), i.private_ip_address])
+    for i in instances:
+        if i.private_ip_address:
+            ret.append([full_name, i.private_ip_address])
     return ret
 
 
